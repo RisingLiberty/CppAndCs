@@ -138,7 +138,7 @@ public:
 		: m_assembly_path(assemblyPath)
 		, m_host_fxr_path(hostFxrLib)
 	{
-
+		m_set_function = get_function<set_function_fn>(L"DotNetLib2.DelegateSetter", L"SetDelegate");
 	}
 
 	template <typename T>
@@ -147,10 +147,23 @@ public:
 		return (T)m_host_fxr_path->load_function(m_assembly_path, classPath, methodName);
 	}
 
+	void set_function(std::string_view classPath, std::string_view delegateName, void* func)
+	{
+		m_set_function(classPath.data(), delegateName.data(), func);
+	}
+
 private:
 	std::wstring m_assembly_path;
 	const HostFxrLibrary* m_host_fxr_path;
+
+	using set_function_fn = void(*)(const char*, const char*, void*);
+	set_function_fn m_set_function;
 };
+
+void foobar()
+{
+	std::cout << "Hello from C#";
+}
 
 int main()
 {
@@ -164,8 +177,15 @@ int main()
 	using hello_fn = void(*)(const char*);
 	hello_fn func = assembly.get_function<hello_fn>(type_name, method_name);
 
-	func("hello");
-	func("hello again");
+	std::wstring internal_type_name = L"DotNetLib2.InternalCalls";
+	using call_delegate_fn = void(*)();
+	call_delegate_fn call_delegate = assembly.get_function<call_delegate_fn>(internal_type_name, L"CallDelegate");
+	assembly.set_function("DotNetLib2.InternalCalls", "TestDelegate", foobar);
+
+	call_delegate();
+
+	// func("hello");
+	// func("hello again");
 	
 	return 0;
 }

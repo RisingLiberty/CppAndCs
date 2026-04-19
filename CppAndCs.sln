@@ -18,6 +18,9 @@ EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "App", "App\App.csproj", "{7E9BD819-E143-4347-9430-68B583BEFDB7}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CppAsCs2", "CppAsCs2\CppAsCs2.vcxproj", "{31299629-1C62-4FFD-B4BC-0D2060A768A3}"
+	ProjectSection(ProjectDependencies) = postProject
+		{89ED1849-4F94-4641-8517-15D3CC5964E5} = {89ED1849-4F94-4641-8517-15D3CC5964E5}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
