@@ -15,6 +15,7 @@
 
 // Provided by the AppHost NuGet package and installed as an SDK pack
 #include <nethost.h>
+#include <string_view>
 
 // Header files copied from https://github.com/dotnet/core-setup
 #include <coreclr_delegates.h>
@@ -44,6 +45,21 @@
 
 using string_t = std::basic_string<char_t>;
 
+class Assembly
+{
+public:
+  Assembly(std::string_view assemblyPath)
+    : m_assembly_path(assemblyPath)
+  {
+
+  }
+
+
+
+private:
+  std::string m_assembly_path;
+};
+
 //namespace
 //{
     // Globals to hold hostfxr exports
@@ -56,6 +72,7 @@ using string_t = std::basic_string<char_t>;
     // Forward declarations
     bool load_hostfxr(const char_t *app);
     load_assembly_and_get_function_pointer_fn get_dotnet_load_assembly(const char_t *assembly);
+    get_function_pointer_fn get_dotnet_function_pointer(const char_t* config_path);
 
     int run_component_example(const string_t& root_path);
     int run_app_example(const string_t& root_path);
@@ -75,9 +92,9 @@ int main(int argc, char *argv[])
 {
     // Get the current executable's directory
     // This sample assumes the managed assembly to load and its runtime configuration file are next to the host
-    char_t host_path[MAX_PATH];
+  char_t host_path[MAX_PATH];
 #if WINDOWS
-    auto size = ::GetFullPathNameW(argv[0], sizeof(host_path) / sizeof(char_t), host_path, nullptr);
+  auto size = ::GetFullPathNameW(argv[0], sizeof(host_path) / sizeof(char_t), host_path, nullptr);
     assert(size != 0);
 #else
     auto resolved = realpath(argv[0], host_path);
@@ -123,6 +140,7 @@ void foo()
         const string_t config_path = root_path + STR("DotNetLib.runtimeconfig.json");
         load_assembly_and_get_function_pointer_fn load_assembly_and_get_function_pointer = nullptr;
         load_assembly_and_get_function_pointer = get_dotnet_load_assembly(config_path.c_str());
+        get_function_pointer_fn get_function_pointer = get_dotnet_function_pointer(config_path.c_str());
         assert(load_assembly_and_get_function_pointer != nullptr && "Failure: get_dotnet_load_assembly()");
 
         //
@@ -180,6 +198,7 @@ void foo()
             dotnet_type,
             STR("CustomEntryPointUnmanagedCallersOnly") /*method_name*/,
             UNMANAGEDCALLERSONLY_METHOD,
+            //nullptr,
             nullptr,
             (void**)&custom);
         assert(rc == 0 && custom != nullptr && "Failure: load_assembly_and_get_function_pointer()");
@@ -191,6 +210,7 @@ void foo()
             dotnet_type,
             STR("CustomEntryPoint") /*method_name*/,
             STR("DotNetLib.Lib+CustomEntryPointDelegate, DotNetLib") /*delegate_type_name*/,
+            //nullptr,
             nullptr,
             (void**)&custom);
         assert(rc == 0 && custom != nullptr && "Failure: load_assembly_and_get_function_pointer()");
@@ -339,7 +359,7 @@ void foo()
     // Using the nethost library, discover the location of hostfxr and get exports
     bool load_hostfxr(const char_t *assembly_path)
     {
-        get_hostfxr_parameters params { sizeof(get_hostfxr_parameters), assembly_path, nullptr };
+        get_hostfxr_parameters params { sizeof(get_hostfxr_parameters), nullptr /*assembly_path*/, nullptr };
         // Pre-allocate a large buffer for the path to hostfxr
         char_t buffer[MAX_PATH];
         size_t buffer_size = sizeof(buffer) / sizeof(char_t);
@@ -388,4 +408,30 @@ void foo()
         return (load_assembly_and_get_function_pointer_fn)load_assembly_and_get_function_pointer;
     }
     // </SnippetInitialize>
+     
+    // Load and initialize .NET Core and get desired function pointer for scenario
+    get_function_pointer_fn get_dotnet_function_pointer(const char_t* config_path)
+    {
+      // Load .NET Core
+      void* get_function_pointer = nullptr;
+      hostfxr_handle cxt = nullptr;
+      int rc = init_for_config_fptr(config_path, nullptr, &cxt);
+      if ((rc != 0 && rc != 1) || cxt == nullptr)
+      {
+        std::cerr << "Init failed: " << std::hex << std::showbase << rc << std::endl;
+        close_fptr(cxt);
+        return nullptr;
+      }
+
+      // Get the load assembly function pointer
+      rc = get_delegate_fptr(
+        cxt,
+        hdt_get_function_pointer,
+        &get_function_pointer);
+      if (rc != 0 || get_function_pointer == nullptr)
+        std::cerr << "Get delegate failed: " << std::hex << std::showbase << rc << std::endl;
+
+      close_fptr(cxt);
+      return (get_function_pointer_fn)get_function_pointer;
+    }
 //}
